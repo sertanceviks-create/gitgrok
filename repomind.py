@@ -444,7 +444,7 @@ def _source_excerpt(path: str, max_chars: int = 3500) -> str:
     src = open(path, encoding="utf-8", errors="replace").read()
     return src if len(src) <= max_chars else src[:max_chars] + "\n# ... (kısaltıldı)"
 
-def map_step(analysis: dict, llm: LLM, model: str, workers: int) -> None:
+def map_step(analysis: dict, llm: LLM, model: str, workers: int, top_k: int | None = None) -> None:
     mods = analysis["modules"]
     indeg, outdeg = analysis["in_degree"], analysis["out_degree"]
     label, system = analysis["unit_label"], analysis["map_system"]
@@ -472,19 +472,23 @@ def map_step(analysis: dict, llm: LLM, model: str, workers: int) -> None:
     def run(info):
         info.summary = llm.call(system, build_prompt(info), model, max_tokens=400)
         return info.name
+    # sadece en merkezi top_k modülü özetle (hız + maliyet)
+    targets = ([mods[m] for m in analysis["ranking"][:top_k]] if top_k
+               else list(mods.values()))
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futs = {ex.submit(run, m): m.name for m in mods.values()}
+        futs = {ex.submit(run, m): m.name for m in targets}
         for f in as_completed(futs):
             print(f"  [map] {f.result()} ✓", file=sys.stderr)
 
-def reduce_step(analysis: dict, llm: LLM, model: str) -> str:
+def reduce_step(analysis: dict, llm: LLM, model: str, top_k: int | None = None) -> str:
     mods, indeg, outdeg = analysis["modules"], analysis["in_degree"], analysis["out_degree"]
     pr, wl, label = analysis["pagerank"], analysis["weight_label"], analysis["unit_label"]
+    top = analysis["ranking"][:top_k] if top_k else analysis["ranking"]
     rank_table = "\n".join(
         f"  {m} | in={indeg[m]} out={outdeg[m]} pr={pr[m]:.3f} {wl}={mods[m].loc}"
-        for m in analysis["ranking"])
-    edge_list = "\n".join(f"  {a} -> {b}" for a, b in analysis["edges"]) or "  (yok)"
-    summaries = "\n\n".join(f"### {m}\n{mods[m].summary}" for m in analysis["ranking"])
+        for m in top)
+    edge_list = "\n".join(f"  {a} -> {b}" for a, b in analysis["edges"][:60]) or "  (yok)"
+    summaries = "\n\n".join(f"### {m}\n{mods[m].summary}" for m in top if mods[m].summary)
     prompt = (
         f"REPO TÜRÜ: {analysis['kind']} ({analysis['lang']}) | "
         f"{label.upper()}: {len(mods)} | REFERANS/KENAR: {len(analysis['edges'])}\n\n"

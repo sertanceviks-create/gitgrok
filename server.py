@@ -60,8 +60,9 @@ def build_report_html(analysis: dict, llm_ok: bool) -> str:
     if llm_ok:
         try:
             llm = rm.LLM(os.path.join(HERE, ".repomind_cache"), dry_run=False)
-            rm.map_step(analysis, llm, "claude-haiku-4-5-20251001", workers=6)
-            body = rm.reduce_step(analysis, llm, "claude-sonnet-4-6")
+            TOP_K = int(os.environ.get("MAP_TOP_K", "12"))  # sadece en merkezi modülleri özetle (hız)
+            rm.map_step(analysis, llm, "claude-haiku-4-5-20251001", workers=8, top_k=TOP_K)
+            body = rm.reduce_step(analysis, llm, "claude-sonnet-4-6", top_k=TOP_K)
             # markdown -> kaba html (başlık + paragraf)
             html = []
             for line in body.splitlines():
