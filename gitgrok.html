@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GitGrok — Repository to understanding</title>
+<meta name="description" content="Bir GitHub reposunu yüzeysel bir prompt'a değil, doğrulanabilir bir mimari anlayışa çevir. Derin analiz, uyarlanır mercek ve agent-ready prompt.">
+<meta property="og:title" content="GitGrok — Repository to understanding">
+<meta property="og:description" content="Bir GitHub reposunu doğrulanabilir bir mimari anlayışa çevir. Derin analiz · uyarlanır mercek · agent-ready prompt.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gitgrok.onrender.com">
+<meta property="og:image" content="https://gitgrok.onrender.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="GitGrok — Repository to understanding">
+<meta name="twitter:description" content="GitHub reposunu doğrulanabilir mimari anlayışa çevir.">
+<meta name="twitter:image" content="https://gitgrok.onrender.com/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -622,13 +632,23 @@ const LIB=[
  {r:"psf/black",t:"python",d:{tr:"Ödün vermez kod formatlayıcı.",en:"The uncompromising code formatter."}},
  {r:"Leonxlnx/taste-skill",t:"content",d:{tr:"AI ajanları için tasarım skill'leri.",en:"Design skills for AI agents."}}
 ];
-function renderLibrary(){
+function kfmt(n){ return n>=1000? (n/1000).toFixed(n>=10000?0:1)+'k' : ''+n; }
+function libCards(items){
+  return items.map(x=>`<button class="lib-card" onclick="pickRepo('${x.r}')">
+    <div class="nm">${x.r}</div><div class="ds">${pickL(x.d)||''}</div>
+    <span class="tg">${x.t==='content'?(LANG==='tr'?'içerik':'content'):x.t}${x.stars?' · ★'+kfmt(x.stars):''}</span></button>`).join('');
+}
+async function renderLibrary(){
   const el=document.getElementById('library');
-  const cards=LIB.map(x=>`<button class="lib-card" onclick="pickRepo('${x.r}')">
-    <div class="nm">${x.r}</div><div class="ds">${pickL(x.d)}</div>
-    <span class="tg">${x.t==='content'?(LANG==='tr'?'içerik':'content'):x.t}</span></button>`).join('');
   el.innerHTML=`<div class="lib-head"><h2>${L('lib_title')}</h2><span class="sub">${L('lib_sub')}</span></div>
-    <div class="lib-grid">${cards}</div>`;
+    <div class="lib-grid">${libCards(LIB)}</div>`;
+  try{
+    const r=await fetch('/api/library');
+    if(r.ok){ const j=await r.json(); if(j.items&&j.items.length){
+      el.innerHTML=`<div class="lib-head"><h2>${L('lib_title')}</h2><span class="sub">${L('lib_sub')}</span></div>
+        <div class="lib-grid">${libCards(j.items)}</div>`;
+    }}
+  }catch(e){ /* canlı liste yoksa gömülü kalır */ }
 }
 function toggleLibrary(){
   const el=document.getElementById('library');

@@ -14,6 +14,7 @@ Uçlar:
 """
 from __future__ import annotations
 import os, sys, re, json, time, tempfile, shutil, traceback, subprocess
+import urllib.request, urllib.parse
 from collections import defaultdict, deque
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
@@ -180,7 +181,7 @@ DOĞRULAMA:
 - Tüm birimler kapsandı mı? Çapraz referanslar tutarlı mı? Taksonomi korunuyor mu?""")
 
 
-def analysis_to_json(analysis: dict, name: str, llm_ok: bool) -> dict:
+def analysis_to_json(analysis: dict, name: str, llm_ok: bool, root: str | None = None) -> dict:
     mods = analysis["modules"]
     indeg, outdeg, pr = analysis["in_degree"], analysis["out_degree"], analysis["pagerank"]
     kind = analysis["kind"]
@@ -208,6 +209,15 @@ def analysis_to_json(analysis: dict, name: str, llm_ok: bool) -> dict:
             score = max(70, 100 - ncyc * 8)
             verify.append([f"Plan ({ncyc} döngü grubu birlikte kurulur)", score, "--warn"])
             verify.append([f"Döngü tespiti: {ncyc} grup", 100, "--good"])
+        # canlı derleme kontrolü (Python)
+        if root and analysis["lang"] == "python":
+            try:
+                cc = vf.compile_check(root)
+                if cc["total"]:
+                    verify.append([f"Derleme ({cc['compiled']}/{cc['total']} dosya)",
+                                   round(cc["score"]), "--good" if cc["score"] >= 95 else "--warn"])
+            except Exception:
+                pass
     else:
         verify.append(["Birim kapsamı tespiti", 100, "--good"])
         verify.append(["Çapraz referans çıkarımı", 92, "--good"])
@@ -238,6 +248,51 @@ def index():
 @app.get("/api/health")
 def health():
     return {"ok": True, "llm": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+
+@app.get("/og.png")
+def og():
+    p = os.path.join(HERE, "og.png")
+    return FileResponse(p) if os.path.exists(p) else JSONResponse({}, status_code=404)
+
+# ---- canlı trend repolar (GitHub Search API, cache'li) ----
+_lib_cache = {"t": 0, "data": None}
+def _fetch_trending():
+    now = time.time()
+    if _lib_cache["data"] and now - _lib_cache["t"] < 6 * 3600:
+        return _lib_cache["data"]
+    items = []
+    # popüler ama analiz edilebilir boyutta repolar (size KB cinsinden)
+    queries = [
+        "language:python stars:>2000 size:<18000",
+        "language:javascript stars:>3000 size:<15000",
+        "language:typescript stars:>3000 size:<15000",
+    ]
+    try:
+        for q in queries:
+            url = ("https://api.github.com/search/repositories?q="
+                   + urllib.parse.quote(q) + "&sort=stars&order=desc&per_page=5")
+            req = urllib.request.Request(url, headers={
+                "Accept": "application/vnd.github+json", "User-Agent": "gitgrok"})
+            tok = os.environ.get("GITHUB_TOKEN")
+            if tok:
+                req.add_header("Authorization", "Bearer " + tok)
+            with urllib.request.urlopen(req, timeout=8) as r:
+                data = json.load(r)
+            for it in data.get("items", [])[:5]:
+                items.append({"r": it["full_name"],
+                              "t": (it.get("language") or "code").lower(),
+                              "d": (it.get("description") or "")[:90],
+                              "stars": it.get("stargazers_count", 0)})
+    except Exception:
+        pass
+    items.sort(key=lambda x: x["stars"], reverse=True)
+    if items:
+        _lib_cache.update(t=now, data=items[:12])
+    return _lib_cache["data"] or []
+
+@app.get("/api/library")
+def library():
+    return {"items": _fetch_trending()}
 
 @app.post("/api/analyze")
 async def analyze(req: Request):
@@ -283,7 +338,7 @@ async def analyze(req: Request):
             code_root = rm._find_code_root(root, [e for e, l in rm.LANG_EXT.items() if l == lang])
             analysis = rm.static_analysis(code_root, lang)
         name = url.split("github.com/")[-1] if "github.com" in url else os.path.basename(root)
-        return analysis_to_json(analysis, name, llm_ok)
+        return analysis_to_json(analysis, name, llm_ok, root=root)
     except Exception as e:
         traceback.print_exc()
         return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=500)

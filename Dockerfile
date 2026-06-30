@@ -11,8 +11,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# uygulama dosyaları
+# uygulama dosyaları (og.png varsa kopyalanır)
 COPY server.py repomind.py verify.py gitgrok.html ./
+COPY og.png ./
 
 # Render/Fly PORT ortam değişkenini verir; yoksa 8000
 ENV PORT=8000
