@@ -183,6 +183,21 @@
   #promptBox{font-family:var(--mono);font-size:12px;line-height:1.6;color:#2c2b26;background:var(--surface2);
     border:1px solid var(--line);border-radius:12px;padding:16px;white-space:pre-wrap;max-height:340px;overflow:auto;margin:0}
 
+  /* kütüphane */
+  #library{display:none;padding:8px 0 10px}
+  #library.open{display:block}
+  .lib-head{display:flex;align-items:baseline;justify-content:space-between;margin:6px 0 14px}
+  .lib-head h2{font-family:var(--disp);font-size:22px;font-weight:700;letter-spacing:-.02em;margin:0}
+  .lib-head .sub{color:var(--dim);font-size:13px}
+  .lib-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:820px){.lib-grid{grid-template-columns:1fr}}
+  .lib-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:15px 16px;cursor:pointer;transition:.14s;text-align:left}
+  .lib-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .lib-card .nm{font-family:var(--mono);font-size:13.5px;font-weight:500;color:var(--ink)}
+  .lib-card .ds{color:var(--dim);font-size:12.5px;margin-top:5px;line-height:1.45}
+  .lib-card .tg{display:inline-block;margin-top:9px;font-family:var(--mono);font-size:10.5px;
+    color:var(--accent);background:var(--accent-soft);border:1px solid var(--accent-line);padding:2px 8px;border-radius:6px}
   /* header kontrolleri: dil + tema */
   .ctrls{display:flex;align-items:center;gap:8px}
   .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
@@ -200,7 +215,7 @@
 <body>
 <header><div class="wrap">
   <div class="logo"><svg class="gmark" viewBox="0 0 62 32" aria-hidden="true"><polygon class="ink" points="6,28 17,4 24,4 13,28"/><circle class="acc" cx="33" cy="16" r="5.4"/><polygon class="ink" points="44,3 62,16 44,29"/></svg><span class="wordmark">GitGrok</span></div>
-  <div class="nav"><span data-i18n="nav_library">Kütüphane</span><span data-i18n="nav_verify">Doğrula</span><span class="cta" data-i18n="nav_premium">Premium</span></div>
+  <div class="nav"><span class="cta" onclick="toggleLibrary()" data-i18n="nav_library">Kütüphane</span></div>
   <div class="ctrls">
     <div class="seg" id="langSeg">
       <button data-lang="tr" class="on" onclick="setLang('tr')">TR</button>
@@ -226,6 +241,7 @@
     <div class="hint" data-i18n="hint">GitHub URL'inde <code>hub</code> yerine <code>grok</code> de yazabilirsin. <b>Prototip:</b> örnek repolar gerçek analiz verisiyle gelir.</div>
   </section>
 
+  <section id="library"></section>
   <section id="results"></section>
 </div>
 
@@ -380,6 +396,7 @@ const T={
    analyze:"Analiz et",ph:"https://github.com/kullanıcı/repo",
    hint:`GitHub URL'inde <code>hub</code> yerine <code>grok</code> de yazabilirsin. <b>Prototip:</b> örnek repolar gerçek analiz verisiyle gelir.`,
    chip_code:"· kod",chip_content:"· içerik",footer:"Gerçek statik analiz + doğrulama verisiyle · derin, doğrulanabilir repo anlayışı",
+   lib_title:"Kütüphane",lib_sub:"Öne çıkan açık kaynak repolar · tıkla, canlı analiz et",
    repotype:"repo-tipi",unit_code:"modül",unit_content:"birim",edge_code:"iç bağımlılık",edge_content:"çapraz referans",
    wl_code:"loc",wl_content:"satır",ext:"dış",
    c_centrality:"Ağırlık / merkezilik",s_static:"statik analiz · LLM'siz",
@@ -405,6 +422,7 @@ const T={
    analyze:"Analyze",ph:"https://github.com/user/repo",
    hint:`In a GitHub URL you can swap <code>hub</code> for <code>grok</code>. <b>Prototype:</b> example repos come with real analysis data.`,
    chip_code:"· code",chip_content:"· content",footer:"Powered by real static-analysis + verification data · deep, verifiable repo understanding",
+   lib_title:"Library",lib_sub:"Notable open-source repos · click to analyze live",
    repotype:"repo type",unit_code:"modules",unit_content:"units",edge_code:"internal deps",edge_content:"cross-references",
    wl_code:"loc",wl_content:"lines",ext:"external",
    c_centrality:"Weight / centrality",s_static:"static analysis · no LLM",
@@ -564,6 +582,39 @@ function dl(fname){
 
 function run(key){ document.getElementById('url').value="https://github.com/"+DATA[key].name; render(DATA[key]); }
 
+/* ---- Kütüphane: öne çıkan repolar ---- */
+const LIB=[
+ {r:"psf/requests",t:"python",d:{tr:"Python için yüksek seviyeli HTTP istemcisi.",en:"High-level HTTP client for Python."}},
+ {r:"pallets/flask",t:"python",d:{tr:"Minimal web framework'ü.",en:"Lightweight web framework."}},
+ {r:"pallets/click",t:"python",d:{tr:"Komut satırı arayüzü araç seti.",en:"Command-line interface toolkit."}},
+ {r:"tiangolo/typer",t:"python",d:{tr:"Tip ipuçlarından CLI üretir.",en:"Build CLIs from type hints."}},
+ {r:"tqdm/tqdm",t:"python",d:{tr:"Hızlı, genişletilebilir ilerleme çubukları.",en:"Fast, extensible progress bars."}},
+ {r:"python-attrs/attrs",t:"python",d:{tr:"Boilerplate'siz sınıflar.",en:"Classes without boilerplate."}},
+ {r:"theskumar/python-dotenv",t:"python",d:{tr:".env dosyalarını yükler.",en:"Loads .env files into env."}},
+ {r:"psf/black",t:"python",d:{tr:"Ödün vermez kod formatlayıcı.",en:"The uncompromising code formatter."}},
+ {r:"Leonxlnx/taste-skill",t:"content",d:{tr:"AI ajanları için tasarım skill'leri.",en:"Design skills for AI agents."}}
+];
+function renderLibrary(){
+  const el=document.getElementById('library');
+  const cards=LIB.map(x=>`<button class="lib-card" onclick="pickRepo('${x.r}')">
+    <div class="nm">${x.r}</div><div class="ds">${pickL(x.d)}</div>
+    <span class="tg">${x.t==='content'?(LANG==='tr'?'içerik':'content'):x.t}</span></button>`).join('');
+  el.innerHTML=`<div class="lib-head"><h2>${L('lib_title')}</h2><span class="sub">${L('lib_sub')}</span></div>
+    <div class="lib-grid">${cards}</div>`;
+}
+function toggleLibrary(){
+  const el=document.getElementById('library');
+  const open=!el.classList.contains('open');
+  if(open) renderLibrary();
+  el.classList.toggle('open',open);
+  if(open) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function pickRepo(repo){
+  document.getElementById('library').classList.remove('open');
+  document.getElementById('url').value="https://github.com/"+repo;
+  analyze();
+}
+
 function showLoading(url){
   const r=document.getElementById('results');
   r.innerHTML=`<div class="runbar">${L('loading')(url)}</div>`;
@@ -596,6 +647,7 @@ function setLang(lang){
   document.getElementById('url').setAttribute('placeholder',L('ph'));
   document.querySelectorAll('#langSeg button').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
   if(CUR) render(CUR);   // sonucu yeni dilde yeniden çiz
+  const lib=document.getElementById('library'); if(lib&&lib.classList.contains('open')) renderLibrary();
 }
 function toggleTheme(){ setTheme(THEME==='light'?'dark':'light'); }
 function setTheme(t){
