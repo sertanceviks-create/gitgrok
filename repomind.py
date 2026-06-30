@@ -52,12 +52,14 @@ def _load_language(lang: str):
 # ----------------------------------------------------------------------------
 # 1. INGEST
 # ----------------------------------------------------------------------------
+CLONE_TIMEOUT = int(os.environ.get("CLONE_TIMEOUT", "150"))  # saniye
+
 def ingest(target: str, workdir: str) -> str:
     """GitHub URL ise klonla, yerel yol ise olduğu gibi kullan. Repo KÖKÜNÜ döndür."""
     if target.startswith("http") or target.endswith(".git"):
         dest = os.path.join(workdir, "repo")
-        subprocess.run(["git", "clone", "--depth=1", target, dest],
-                       check=True, capture_output=True)
+        subprocess.run(["git", "clone", "--depth=1", "--single-branch", target, dest],
+                       check=True, capture_output=True, timeout=CLONE_TIMEOUT)
         return dest
     return os.path.abspath(target)
 

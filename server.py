@@ -13,7 +13,8 @@ Uçlar:
   GET  /api/health
 """
 from __future__ import annotations
-import os, sys, json, tempfile, shutil, traceback
+import os, sys, json, time, tempfile, shutil, traceback, subprocess
+from collections import defaultdict, deque
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 import uvicorn
@@ -25,6 +26,33 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="GitGrok")
 
 _short = lambda n: n.split(".")[-1]
+
+# ---- güvenlik limitleri (ortam değişkeniyle ayarlanabilir) ----
+MAX_REPO_MB    = int(os.environ.get("MAX_REPO_MB", "60"))      # klon boyut tavanı
+MAX_REPO_FILES = int(os.environ.get("MAX_REPO_FILES", "4000")) # dosya sayısı tavanı
+RATE_MAX       = int(os.environ.get("RATE_MAX", "15"))         # pencere başına istek
+RATE_WINDOW    = int(os.environ.get("RATE_WINDOW", "300"))     # saniye (5 dk)
+_hits = defaultdict(deque)
+
+def _rate_ok(ip: str) -> bool:
+    now = time.time(); q = _hits[ip]
+    while q and now - q[0] > RATE_WINDOW:
+        q.popleft()
+    if len(q) >= RATE_MAX:
+        return False
+    q.append(now); return True
+
+def _repo_stats(root: str):
+    """Klonlanan reponun dosya sayısı ve MB cinsinden boyutu (.git hariç)."""
+    nfiles = 0; nbytes = 0
+    for dp, dn, fn in os.walk(root):
+        if ".git" in dp.split(os.sep):
+            continue
+        for f in fn:
+            nfiles += 1
+            try: nbytes += os.path.getsize(os.path.join(dp, f))
+            except OSError: pass
+    return nfiles, nbytes / (1024 * 1024)
 
 
 def build_report_html(analysis: dict, llm_ok: bool) -> str:
@@ -178,19 +206,41 @@ def health():
 
 @app.post("/api/analyze")
 async def analyze(req: Request):
+    # hız sınırı (IP başına)
+    ip = (req.client.host if req.client else "?")
+    if not _rate_ok(ip):
+        return JSONResponse({"error": f"Çok fazla istek. {RATE_WINDOW//60} dk içinde tekrar dene."},
+                            status_code=429)
+
     data = await req.json()
     url = (data.get("url") or "").strip()
     if not url:
         return JSONResponse({"error": "url gerekli"}, status_code=400)
+    # güvenlik: sadece github URL'leri (yerel yol yalnız geliştirme makinesinde)
     if "github.com" not in url and not os.path.isdir(url):
         url = "https://github.com/" + url.strip("/")
-    # 'grok' -> 'hub' kısayolu (gitgrok.com/u/r → github.com/u/r)
     url = url.replace("gitgrok.com", "github.com")
 
     llm_ok = bool(os.environ.get("ANTHROPIC_API_KEY"))
     work = tempfile.mkdtemp(prefix="repomind_srv_")
     try:
-        root = rm.ingest(url, work)
+        try:
+            root = rm.ingest(url, work)
+        except subprocess.TimeoutExpired:
+            return JSONResponse({"error": "Repo klonlama zaman aşımına uğradı (çok büyük olabilir)."},
+                                status_code=408)
+        except subprocess.CalledProcessError:
+            return JSONResponse({"error": "Repo bulunamadı ya da erişilemedi (özel/yanlış URL?)."},
+                                status_code=404)
+
+        # güvenlik: boyut/dosya tavanı
+        nfiles, mb = _repo_stats(root)
+        if nfiles > MAX_REPO_FILES or mb > MAX_REPO_MB:
+            return JSONResponse(
+                {"error": f"Repo bu demo için çok büyük ({nfiles} dosya, {mb:.0f} MB). "
+                          f"Sınır: {MAX_REPO_FILES} dosya / {MAX_REPO_MB} MB."},
+                status_code=413)
+
         kind, lang = rm.classify_repo(root)
         if kind == "content":
             analysis = rm.content_analysis(root)
