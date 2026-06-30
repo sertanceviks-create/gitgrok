@@ -15,7 +15,7 @@ Uçlar:
 from __future__ import annotations
 import os, sys, re, json, time, tempfile, shutil, traceback, subprocess
 import urllib.request, urllib.parse
-from collections import defaultdict, deque
+from collections import defaultdict, deque, Counter
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 import uvicorn
@@ -34,6 +34,9 @@ MAX_REPO_FILES = int(os.environ.get("MAX_REPO_FILES", "4000")) # dosya sayısı 
 RATE_MAX       = int(os.environ.get("RATE_MAX", "15"))         # pencere başına istek
 RATE_WINDOW    = int(os.environ.get("RATE_WINDOW", "300"))     # saniye (5 dk)
 _hits = defaultdict(deque)
+
+# ---- basit kullanım sayacı (bellekte; her yeniden derlemede sıfırlanır) ----
+_stats = {"analyses": 0, "ips": set(), "repos": Counter(), "started": time.time()}
 
 def _rate_ok(ip: str) -> bool:
     now = time.time(); q = _hits[ip]
@@ -294,6 +297,16 @@ def _fetch_trending():
 def library():
     return {"items": _fetch_trending()}
 
+@app.get("/api/stats")
+def stats():
+    return {
+        "analyses": _stats["analyses"],
+        "unique_visitors": len(_stats["ips"]),
+        "top_repos": _stats["repos"].most_common(10),
+        "uptime_hours": round((time.time() - _stats["started"]) / 3600, 1),
+        "note": "Bellekte tutulur; her yeniden derlemede sıfırlanır.",
+    }
+
 @app.post("/api/analyze")
 async def analyze(req: Request):
     # hız sınırı (IP başına)
@@ -330,6 +343,13 @@ async def analyze(req: Request):
                 {"error": f"Repo bu demo için çok büyük ({nfiles} dosya, {mb:.0f} MB). "
                           f"Sınır: {MAX_REPO_FILES} dosya / {MAX_REPO_MB} MB."},
                 status_code=413)
+
+        # kullanım sayacı
+        _stats["analyses"] += 1
+        _stats["ips"].add(ip)
+        repo_key = url.split("github.com/")[-1].strip("/") if "github.com" in url else os.path.basename(root)
+        _stats["repos"][repo_key] += 1
+        print(f"[analiz] {repo_key} | toplam={_stats['analyses']} ip={ip}", file=sys.stderr)
 
         kind, lang = rm.classify_repo(root)
         if kind == "content":
