@@ -708,7 +708,7 @@ async function analyze(){
   let result=null;
   try{
     const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({url:v})});
+      body:JSON.stringify({url:v, lang:LANG})});
     if(res.ok){ const d=await res.json(); if(!d.error) result={data:d}; }
   }catch(e){ /* backend yok → fallback */ }
   if(!result){
