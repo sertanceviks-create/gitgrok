@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+anthropic
+networkx
+scipy
+tree-sitter
+tree-sitter-python
+tree-sitter-javascript

@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitGrok — Repository to understanding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Marka fontu: Groote (ticari). Lisanslıysa otomatik kullanılır; yoksa Poppins/Inter'e düşer.
+     Self-host için: @font-face { font-family:'Groote'; src:url('/fonts/Groote.woff2') format('woff2'); } -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 62 32'%3E%3Cpolygon points='6,28 17,4 24,4 13,28' fill='%23003049'/%3E%3Ccircle cx='33' cy='16' r='5.4' fill='%23F77F00'/%3E%3Cpolygon points='44,3 62,16 44,29' fill='%23003049'/%3E%3C/svg%3E">
+<style>
+  :root{
+    /* palet: 003049 lacivert · d62828 kırmızı · f77f00 turuncu · fcbf49 amber · eae2b7 krem */
+    --bg:#F3EBC9; --surface:#FFFDF4; --surface2:#F7F0D6;
+    --ink:#003049; --dim:#5C6B74; --line:#E2D9AE; --line2:#ECE4BE;
+    --accent:#F77F00; --accent-soft:rgba(247,127,0,.12); --accent-line:rgba(247,127,0,.34);
+    --coral:#D62828; --coral-soft:rgba(214,40,40,.10);
+    --amber:#FCBF49; --navy:#003049;
+    --good:#003049; --warn:#B9740A; --bad:#D62828;
+    --sans:'Groote','Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    --disp:'Groote','Poppins','Space Grotesk',sans-serif;
+    --serif:'Instrument Serif',Georgia,serif;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+    --shadow:none;
+    --radius:12px;
+  }
+  /* --- DARK MODE (aynı marka ailesi) --- */
+  [data-theme="dark"]{
+    --bg:#03222F; --surface:#073047; --surface2:#0C3A54;
+    --ink:#F3EBC9; --dim:#9FB4C2; --line:#14455F; --line2:#103A54;
+    --accent:#F88B16; --accent-soft:rgba(247,127,0,.18); --accent-line:rgba(247,127,0,.42);
+    --coral:#FF6354; --coral-soft:rgba(255,99,84,.16);
+    --amber:#FCBF49; --navy:#003049;
+    --good:#FCBF49; --warn:#F77F00; --bad:#FF6354;
+    --shadow:none;
+  }
+  [data-theme="dark"] header{background:rgba(3,34,47,.85)}
+  [data-theme="dark"] .report p,[data-theme="dark"] .vrow .vl{color:#D9DEE2}
+  [data-theme="dark"] .report .layer,[data-theme="dark"] #promptBox{color:#CFD6DC}
+  [data-theme="dark"] .node text{fill:var(--ink)}
+  [data-theme="dark"] .node rect{fill:#0C3A54}
+  [data-theme="dark"] .node.hovered rect{fill:#0a2f44}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+  header{padding:18px 0;position:sticky;top:0;z-index:5;
+    background:rgba(243,235,201,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  header .wrap{display:flex;align-items:center;gap:20px}
+  .logo{display:flex;align-items:center;gap:10px}
+  .gmark{height:21px;width:auto;display:block;flex:none}
+  .gmark .ink{fill:var(--ink)} .gmark .acc{fill:var(--accent)}
+  .wordmark{font-family:var(--disp);font-weight:700;font-size:22px;letter-spacing:-.045em;color:var(--ink);line-height:1}
+  footer .gmark{height:17px} footer .wordmark{font-size:18px}
+  .nav{margin-left:auto;display:flex;gap:22px;font-size:14px;color:var(--dim);font-weight:500}
+  .nav span{cursor:pointer}.nav span:hover{color:var(--ink)}
+  .nav .cta{color:var(--accent)}
+
+  .hero{text-align:center;padding:78px 0 30px}
+  .eyebrow{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:22px}
+  .hero h1{font-family:var(--disp);font-size:56px;line-height:1.02;letter-spacing:-.04em;
+    margin:0 0 16px;font-weight:700}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .hero p{color:var(--dim);font-size:18px;max-width:600px;margin:0 auto 32px}
+  .box{display:flex;gap:9px;max-width:600px;margin:0 auto;background:var(--surface);
+    border:1px solid var(--line);border-radius:14px;padding:7px;box-shadow:var(--shadow)}
+  .box input{flex:1;background:transparent;border:0;color:var(--ink);
+    padding:11px 14px;font-size:15px;font-family:var(--mono)}
+  .box input::placeholder{color:#A8A69D}
+  .box input:focus{outline:none}
+  .box button{background:var(--accent);color:var(--navy);border:0;padding:0 24px;border-radius:9px;
+    font-weight:700;font-size:15px;font-family:var(--sans);cursor:pointer;transition:.15s}
+  .box button:hover{background:#e87400;transform:translateY(-1px)}
+  .chips{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+  .chip{background:var(--surface);border:1px solid var(--line);color:var(--ink);font-size:13px;
+    padding:7px 14px;border-radius:999px;cursor:pointer;font-family:var(--mono);transition:.15s;box-shadow:var(--shadow)}
+  .chip:hover{border-color:var(--accent-line);transform:translateY(-1px)}
+  .chip i{font-style:normal;color:var(--dim)}
+  .hint{color:var(--dim);font-size:13px;margin-top:22px}
+  .hint code{font-family:var(--mono);background:var(--surface);border:1px solid var(--line);padding:2px 7px;border-radius:6px;font-size:12px}
+  .hint b{color:var(--coral)}
+
+  #results{display:none;padding:14px 0 80px}
+  .reveal{animation:fade .45s cubic-bezier(.2,.7,.2,1)}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  .runbar{font-family:var(--mono);font-size:12.5px;color:var(--dim);background:var(--surface);
+    border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:6px 0 22px;white-space:pre-line;box-shadow:var(--shadow)}
+  .runbar .ok{color:var(--good);font-weight:500}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:840px){.grid{grid-template-columns:1fr}.hero h1{font-size:38px}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 22px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .card h3{font-family:var(--disp);margin:0 0 3px;font-size:16px;letter-spacing:-.01em;font-weight:600}
+  .card .sub{color:var(--dim);font-size:12.5px;margin-bottom:15px}
+
+  .badge{display:inline-block;font-size:12px;font-family:var(--mono);padding:4px 11px;border-radius:7px;font-weight:500}
+  .b-code{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line)}
+  .b-content{background:var(--coral-soft);color:var(--coral);border:1px solid rgba(232,100,60,.28)}
+  .stat{display:flex;gap:24px;flex-wrap:wrap;font-family:var(--mono);font-size:13px;color:var(--dim);margin-top:14px}
+  .stat b{color:var(--ink);font-weight:600}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line2)}
+  th{color:var(--dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  td.m{font-family:var(--mono);color:var(--ink);font-size:12.5px}
+  tr:last-child td{border-bottom:0}
+  .bar{height:7px;background:var(--surface2);border:1px solid var(--line2);border-radius:5px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--accent)}
+
+  svg{width:100%;height:auto;display:block}
+  .node{cursor:pointer}
+  .node rect{fill:var(--surface2);stroke:var(--line);transition:stroke .15s,fill .15s,stroke-width .15s}
+  .node text{fill:var(--ink);font-family:var(--mono);font-size:10px;transition:fill .15s,font-weight .15s}
+  .node.core rect{stroke:var(--accent);fill:var(--accent-soft)}
+  .node.core text{fill:var(--accent);font-weight:500}
+  .node.hovered rect{stroke:var(--accent);stroke-width:2;fill:#fff;filter:drop-shadow(0 4px 10px rgba(247,127,0,.28))}
+  .node.hovered text{fill:var(--accent);font-weight:600}
+  .node.dim{opacity:.32}
+  .node.active rect{stroke:var(--coral);stroke-width:2.2;fill:var(--coral-soft)}
+  .node.active text{fill:var(--coral);font-weight:600}
+  .edge{stroke:#D9D6CD;stroke-width:1.2;fill:none;transition:stroke .15s,stroke-width .15s,opacity .15s}
+  .edge.hl{stroke:var(--accent);stroke-width:2}
+  .edge.dim{opacity:.18}
+
+  /* node detay drawer */
+  #drawer{position:fixed;top:0;right:0;height:100%;width:340px;max-width:88vw;background:var(--surface);
+    border-left:1px solid var(--line);box-shadow:-14px 0 40px rgba(27,26,23,.10);
+    transform:translateX(102%);transition:transform .32s cubic-bezier(.2,.7,.2,1);z-index:20;
+    padding:22px 22px;overflow-y:auto}
+  #drawer.open{transform:none}
+  #drawer .x{position:absolute;top:16px;right:18px;cursor:pointer;color:var(--dim);font-size:20px;line-height:1}
+  #drawer h3{font-family:var(--disp);font-size:20px;margin:2px 0 2px;letter-spacing:-.01em;word-break:break-all}
+  #drawer .role{display:inline-block;font-family:var(--mono);font-size:11.5px;color:var(--accent);
+    background:var(--accent-soft);border:1px solid var(--accent-line);padding:3px 10px;border-radius:7px;margin:8px 0 16px}
+  #drawer .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+  #drawer .metric{background:var(--surface2);border:1px solid var(--line2);border-radius:10px;padding:10px 12px}
+  #drawer .metric .n{font-family:var(--disp);font-size:22px;font-weight:600}
+  #drawer .metric .k{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+  #drawer .dl{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 7px;font-weight:600}
+  #drawer .tags{display:flex;flex-wrap:wrap;gap:6px}
+  #drawer .tag{font-family:var(--mono);font-size:12px;background:var(--surface2);border:1px solid var(--line);
+    padding:4px 9px;border-radius:7px;cursor:pointer;transition:.12s}
+  #drawer .tag:hover{border-color:var(--accent-line);color:var(--accent)}
+  #drawer .empty{font-size:12.5px;color:var(--dim);font-style:italic}
+  #scrim{position:fixed;inset:0;background:rgba(27,26,23,.18);opacity:0;pointer-events:none;
+    transition:opacity .3s;z-index:19}
+  #scrim.open{opacity:1;pointer-events:auto}
+
+  .report h4{font-family:var(--disp);margin:18px 0 6px;font-size:14px;color:var(--accent);font-weight:600}
+  .report h4:first-child{margin-top:0}
+  .report p{font-size:13.5px;color:#3a3933;margin:7px 0}
+  .report code{font-family:var(--mono);background:var(--surface2);border:1px solid var(--line2);padding:1px 6px;border-radius:5px;font-size:12px}
+  .report b{color:var(--ink)}
+  .report .layer{font-family:var(--mono);font-size:12px;color:#4a4942;background:var(--surface2);
+    border:1px solid var(--line);border-radius:10px;padding:14px;white-space:pre;overflow-x:auto;margin:9px 0;line-height:1.7}
+  .pill{font-family:var(--mono);font-size:11.5px;color:var(--coral);border:1px solid rgba(232,100,60,.28);
+    background:var(--coral-soft);padding:4px 11px;border-radius:7px;display:inline-block;margin:4px 0}
+
+  .vrow{display:flex;align-items:center;gap:14px;margin:11px 0;font-size:13px}
+  .vrow .vl{flex:1;color:#3a3933}
+  .vrow .vbar{width:170px;height:9px;background:var(--surface2);border:1px solid var(--line2);border-radius:6px;overflow:hidden}
+  .vrow .vbar>i{display:block;height:100%;border-radius:6px}
+  .vrow .vs{font-family:var(--mono);width:42px;text-align:right;font-weight:600}
+  .note{font-size:12px;color:var(--dim);margin-top:12px;border-left:2px solid var(--accent-line);padding-left:12px}
+  .note code{font-family:var(--mono);background:var(--surface2);border:1px solid var(--line2);padding:1px 5px;border-radius:4px;font-size:11px}
+
+  .card.win{background:var(--surface);border-color:var(--accent);border-left-width:3px}
+  .win-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  .win-btns{display:flex;gap:8px;flex-wrap:wrap}
+  .wbtn{font-family:var(--sans);font-size:13px;font-weight:500;padding:8px 14px;border-radius:9px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;transition:.15s}
+  .wbtn:hover{border-color:var(--accent-line);transform:translateY(-1px)}
+  .wbtn.primary{background:var(--accent);color:var(--navy);border-color:var(--accent);font-weight:700}
+  .wbtn.primary:hover{background:#e87400}
+  #promptBox{font-family:var(--mono);font-size:12px;line-height:1.6;color:#2c2b26;background:var(--surface2);
+    border:1px solid var(--line);border-radius:12px;padding:16px;white-space:pre-wrap;max-height:340px;overflow:auto;margin:0}
+
+  /* header kontrolleri: dil + tema */
+  .ctrls{display:flex;align-items:center;gap:8px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+  .seg button{font-family:var(--mono);font-size:12px;font-weight:600;padding:6px 10px;border:0;
+    background:transparent;color:var(--dim);cursor:pointer;transition:.13s}
+  .seg button.on{background:var(--accent);color:var(--navy)}
+  .iconbtn{width:34px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+    color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:.15s}
+  .iconbtn:hover{border-color:var(--accent);color:var(--accent)}
+
+  footer{border-top:1px solid var(--line);padding:28px 0;color:var(--dim);font-size:13px;text-align:center}
+  footer .logo{justify-content:center;margin-bottom:8px;font-size:16px}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="logo"><svg class="gmark" viewBox="0 0 62 32" aria-hidden="true"><polygon class="ink" points="6,28 17,4 24,4 13,28"/><circle class="acc" cx="33" cy="16" r="5.4"/><polygon class="ink" points="44,3 62,16 44,29"/></svg><span class="wordmark">GitGrok</span></div>
+  <div class="nav"><span data-i18n="nav_library">Kütüphane</span><span data-i18n="nav_verify">Doğrula</span><span class="cta" data-i18n="nav_premium">Premium</span></div>
+  <div class="ctrls">
+    <div class="seg" id="langSeg">
+      <button data-lang="tr" class="on" onclick="setLang('tr')">TR</button>
+      <button data-lang="en" onclick="setLang('en')">EN</button>
+    </div>
+    <button class="iconbtn" id="themeBtn" onclick="toggleTheme()" title="Tema / Theme" aria-label="Tema"></button>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="eyebrow" data-i18n="eyebrow">repo → anlayış · doğrulanabilir</div>
+    <h1>Repository to <em>understanding</em></h1>
+    <p data-i18n="sub">Bir GitHub reposunu yüzeysel bir prompt'a değil, doğrulanabilir bir mimari anlayışa çevir. Derin analiz, uyarlanır mercek ve otomatik doğrulama.</p>
+    <div class="box">
+      <input id="url" placeholder="https://github.com/kullanıcı/repo" spellcheck="false">
+      <button onclick="analyze()" data-i18n="analyze">Analiz et</button>
+    </div>
+    <div class="chips">
+      <span class="chip" onclick="run('requests')">psf/requests <i data-i18n="chip_code">· kod</i></span>
+      <span class="chip" onclick="run('taste')">Leonxlnx/taste-skill <i data-i18n="chip_content">· içerik</i></span>
+    </div>
+    <div class="hint" data-i18n="hint">GitHub URL'inde <code>hub</code> yerine <code>grok</code> de yazabilirsin. <b>Prototip:</b> örnek repolar gerçek analiz verisiyle gelir.</div>
+  </section>
+
+  <section id="results"></section>
+</div>
+
+<div id="scrim" onclick="closeDrawer()"></div>
+<aside id="drawer"><span class="x" onclick="closeDrawer()">✕</span><div id="drawerBody"></div></aside>
+
+<footer><div class="wrap">
+  <div class="logo" style="justify-content:center;margin-bottom:8px"><svg class="gmark" viewBox="0 0 62 32" aria-hidden="true"><polygon class="ink" points="6,28 17,4 24,4 13,28"/><circle class="acc" cx="33" cy="16" r="5.4"/><polygon class="ink" points="44,3 62,16 44,29"/></svg><span class="wordmark">GitGrok</span></div>
+  <span data-i18n="footer">Gerçek statik analiz + doğrulama verisiyle · derin, doğrulanabilir repo anlayışı</span>
+</div></footer>
+
+<script>
+/* ---- GERÇEK VERİ (repomind.py + verify.py çıktısı) ---- */
+const DATA = {
+  requests: {
+    name:"psf/requests", kind:"code", lang:"python",
+    units:19, edges:61, loc:6413,
+    ext:["urllib3","certifi","idna","charset_normalizer","cryptography","simplejson"],
+    rank:[{"m":"compat","in":10,"out":0,"pr":0.24,"loc":116},{"m":"structures","in":5,"out":1,"pr":0.073,"loc":131},{"m":"_internal_utils","in":5,"out":1,"pr":0.061,"loc":52},{"m":"_types","in":5,"out":0,"pr":0.056,"loc":189},{"m":"cookies","in":5,"out":3,"pr":0.05,"loc":626},{"m":"utils","in":5,"out":8,"pr":0.048,"loc":1156},{"m":"exceptions","in":5,"out":1,"pr":0.045,"loc":163},{"m":"models","in":4,"out":10,"pr":0.048,"loc":1185},{"m":"auth","in":3,"out":4,"pr":0.037,"loc":355},{"m":"status_codes","in":3,"out":1,"pr":0.037,"loc":129},{"m":"sessions","in":2,"out":12,"pr":0.042,"loc":921},{"m":"adapters","in":1,"out":8,"pr":0.03,"loc":749},{"m":"api","in":1,"out":2,"pr":0.029,"loc":181}],
+    edges_l:[["requests","api"],["requests","sessions"],["requests","models"],["_internal_utils","compat"],["adapters","models"],["adapters","compat"],["adapters","utils"],["api","models"],["api","sessions"],["auth","compat"],["auth","cookies"],["auth","utils"],["cookies","compat"],["exceptions","compat"],["models","auth"],["models","compat"],["models","cookies"],["models","utils"],["models","structures"],["models","exceptions"],["models","status_codes"],["sessions","adapters"],["sessions","models"],["sessions","auth"],["sessions","cookies"],["sessions","utils"],["status_codes","structures"],["structures","compat"],["utils","compat"],["utils","cookies"],["utils","structures"]],
+    report:`<h4>Yönetici özeti</h4><p>Yüksek seviyeli bir HTTP istemcisi. Kullanıcıya sade bir API (<code>requests.get</code>) sunar; perde arkasında isteği bir <code>PreparedRequest</code>'e hazırlar, bir <code>Session</code> üzerinden orkestra eder ve gerçek ağ işini bir <code>HTTPAdapter</code> aracılığıyla <code>urllib3</code>'e devreder.</p>
+    <h4>Katmanlı mimari</h4><div class="layer">api          → kullanıcı cephesi
+sessions     → orkestrasyon (hazırla / gönder / yönlendir)
+models       → Request → PreparedRequest → Response
+adapters     → urllib3 köprüsü (TLS, havuz, proxy)
+auth·cookies·utils → destek
+compat·_types → temel (sıfır iç bağımlılık)</div>
+    <h4>Çıkarımsal tasarım kararları</h4>
+    <p>① <b>Request / PreparedRequest ayrımı</b> — niyet ile tel-üstü gerçeklik ayrılmış; yönlendirmede yeniden hazırlanabilir.</p>
+    <p>② <b>Adapter deseni</b> — tüm ağ işi tek noktada izole; <code>urllib3</code> tek köprüde. Grafik bunu doğruluyor: <code>adapters</code> tek dış-bağ.</p>
+    <p>③ <b>Session = durum + orkestrasyon</b> — çerez kalıcılığı, bağlantı havuzu; <code>api.py</code> her çağrıda geçici bir Session açar.</p>`,
+    verify:[[{tr:"Kendi + otomatik plan",en:"Self + auto plan"},100,"--good"],[{tr:"Elle yazılan plan (sıra hatalı)",en:"Hand-written plan (mis-ordered)"},68,"--warn"],[{tr:"Tersten plan (ihlal)",en:"Reversed plan (violations)"},16,"--bad"],[{tr:"Bozulmuş aday (2 modül eksik)",en:"Broken candidate (2 modules missing)"},88,"--warn"]],
+    vnote:{tr:"Doğrulama motoru, bizim kendi planımızdaki sıralama hatasını ve TYPE_CHECKING kaynaklı sahte döngüleri otomatik yakaladı — sonra düzeltildi.",
+      en:"The verifier automatically caught a mis-ordering in our own plan and false cycles from TYPE_CHECKING imports — then we fixed them."},
+    report:{tr:`<h4>Yönetici özeti</h4><p>Yüksek seviyeli bir HTTP istemcisi. Kullanıcıya sade bir API (<code>requests.get</code>) sunar; isteği bir <code>PreparedRequest</code>'e hazırlar, bir <code>Session</code> üzerinden orkestra eder, gerçek ağ işini bir <code>HTTPAdapter</code> ile <code>urllib3</code>'e devreder.</p><h4>Katmanlı mimari</h4><div class="layer">api → kullanıcı cephesi
+sessions → orkestrasyon
+models → Request → PreparedRequest → Response
+adapters → urllib3 köprüsü
+compat·_types → temel</div><h4>Tasarım kararları</h4><p>① <b>Request / PreparedRequest ayrımı.</b> ② <b>Adapter deseni</b> — ağ tek noktada izole. ③ <b>Session = durum + orkestrasyon.</b></p>`,
+      en:`<h4>Executive summary</h4><p>A high-level HTTP client. Exposes a simple API (<code>requests.get</code>); turns the request into a <code>PreparedRequest</code>, orchestrates it through a <code>Session</code>, and delegates the actual network work to <code>urllib3</code> via an <code>HTTPAdapter</code>.</p><h4>Layered architecture</h4><div class="layer">api → user-facing facade
+sessions → orchestration
+models → Request → PreparedRequest → Response
+adapters → urllib3 bridge
+compat·_types → foundation</div><h4>Design decisions</h4><p>① <b>Request / PreparedRequest split.</b> ② <b>Adapter pattern</b> — networking isolated in one place. ③ <b>Session = state + orchestration.</b></p>`},
+    prompt:{tr:`GÖREV: "psf/requests" reposunun mimari klonunu sıfırdan kur.
+
+ÇEKİRDEK MODÜLLER: compat, models, structures, _internal_utils, _types, cookies
+
+İNŞA SIRASI (bağımlılık sırasına göre):
+1. compat  2. _types  3. _internal_utils  4. structures  5. exceptions
+6. cookies  7. utils  8. status_codes  9. hooks  10. auth
+11. models  12. adapters  13. sessions  14. api
+
+KRİTİK TASARIM KARARLARI:
+- Request ile PreparedRequest'i AYIR.
+- Tüm ağ işini tek Adapter sınıfında izole et (urllib3 köprüsü).
+- Session çerez/havuz/varsayılanları taşısın.
+
+DOĞRULAMA: plan topolojik geçerli mi; .status_code/.json()/.text çalışıyor mu; redirect & basic-auth geçiyor mu?`,
+      en:`TASK: Build an architectural clone of "psf/requests" from scratch.
+
+CORE MODULES: compat, models, structures, _internal_utils, _types, cookies
+
+BUILD ORDER (dependency-first):
+1. compat  2. _types  3. _internal_utils  4. structures  5. exceptions
+6. cookies  7. utils  8. status_codes  9. hooks  10. auth
+11. models  12. adapters  13. sessions  14. api
+
+KEY DESIGN DECISIONS:
+- SEPARATE Request from PreparedRequest.
+- Isolate all networking in a single Adapter class (urllib3 bridge).
+- Session carries cookies/pool/defaults.
+
+VERIFY: is the plan topologically valid; do .status_code/.json()/.text work; do redirect & basic-auth pass?`}
+  },
+  taste: {
+    name:"Leonxlnx/taste-skill", kind:"content", lang:"markdown",
+    units:28, edges:18, loc:7600,
+    ext:[],
+    rank:[{"m":"imagegen-frontend-mobile","in":1,"out":1,"pr":0.033,"loc":1466},{"m":"image-to-code-skill","in":2,"out":0,"pr":0.06,"loc":1229},{"m":"taste-skill","in":3,"out":0,"pr":0.084,"loc":1207},{"m":"imagegen-frontend-web","in":1,"out":0,"pr":0.033,"loc":988},{"m":"brandkit","in":1,"out":0,"pr":0.033,"loc":799},{"m":"taste-skill-v1","in":2,"out":1,"pr":0.046,"loc":227},{"m":"README.md","in":0,"out":13,"pr":0.031,"loc":213},{"m":"stitch-skill","in":2,"out":0,"pr":0.059,"loc":185},{"m":"redesign-skill","in":1,"out":0,"pr":0.033,"loc":179},{"m":"soft-skill","in":1,"out":0,"pr":0.033,"loc":99},{"m":"brutalist-skill","in":1,"out":0,"pr":0.033,"loc":93},{"m":"minimalist-skill","in":1,"out":0,"pr":0.033,"loc":86}],
+    edges_l:[["README.md","brandkit"],["README.md","image-to-code-skill"],["README.md","imagegen-frontend-mobile"],["README.md","imagegen-frontend-web"],["README.md","stitch-skill"],["README.md","taste-skill"],["README.md","taste-skill-v1"],["README.md","redesign-skill"],["README.md","soft-skill"],["README.md","brutalist-skill"],["README.md","minimalist-skill"],["imagegen-frontend-mobile","image-to-code-skill"],["taste-skill-v1","taste-skill"],["CHANGELOG.md","taste-skill"]],
+    report:{tr:`<h4>Yönetici özeti</h4><p>Bir kod reposu <b>değil</b>: AI ajanları için "Anti-Slop Frontend Framework" — 13 taşınabilir tasarım/görsel-üretim skill'i (<code>SKILL.md</code>) + bir "LLM tembelliği" araştırma külliyatı.</p><p class="pill">Repo-tipi tespiti: kod merceği 0 sonuç verdi → içerik merceğine geçildi.</p><h4>Birim taksonomisi</h4><div class="layer">felsefe   research/laziness
+çekirdek  design-taste-frontend (amiral gemisi)
+estetik   brutalist · minimalist · soft
+görsel    brandkit · imagegen-web · imagegen-mobile</div><h4>Kararlar</h4><p>① Felsefe → ürün bağı. ② Ağırlık birkaç skill'de. ③ Ajan-agnostik.</p>`,
+      en:`<h4>Executive summary</h4><p><b>Not</b> a code repo: an "Anti-Slop Frontend Framework" for AI agents — 13 portable design/image-gen skills (<code>SKILL.md</code>) + an "LLM laziness" research corpus.</p><p class="pill">Repo-type detection: code lens returned 0 → switched to content lens.</p><h4>Unit taxonomy</h4><div class="layer">philosophy  research/laziness
+core        design-taste-frontend (flagship)
+aesthetic   brutalist · minimalist · soft
+image-gen   brandkit · imagegen-web · imagegen-mobile</div><h4>Decisions</h4><p>① Philosophy → product link. ② Weight sits in a few skills. ③ Agent-agnostic.</p>`},
+    verify:[[{tr:"Birim kapsamı tespiti",en:"Unit coverage detection"},100,"--good"],[{tr:"Çapraz referans doğruluğu",en:"Cross-reference accuracy"},92,"--good"],[{tr:"Taksonomi tutarlılığı",en:"Taxonomy consistency"},96,"--good"]],
+    vnote:{tr:"İçerik repolarında doğrulama; birim kapsamı, çapraz referans isabeti ve taksonomi tutarlılığı üzerinden yapılır.",
+      en:"For content repos, verification uses unit coverage, cross-reference accuracy and taxonomy consistency (instead of compilation)."},
+    prompt:{tr:`GÖREV: "Leonxlnx/taste-skill" skills koleksiyonunu anla ve benzerini üret.
+
+EN AĞIRLIKLI BİRİMLER (önce oku):
+- imagegen-frontend-mobile · image-to-code-skill · taste-skill (amiral gemisi)
+- imagegen-frontend-web · brandkit
+
+KURALLAR:
+- Önce amiral gemisi + görsel-üretim üçlüsünü incele.
+- Felsefe → ürün bağını koru: research/laziness → full-output-enforcement.
+- Her SKILL.md tek sorumluluk + frontmatter taşısın.
+
+DOĞRULAMA: 13 skill kapsandı mı; çapraz referanslar tutarlı mı; taksonomi korunuyor mu?`,
+      en:`TASK: Understand the "Leonxlnx/taste-skill" collection and produce a similar one.
+
+HEAVIEST UNITS (read first):
+- imagegen-frontend-mobile · image-to-code-skill · taste-skill (flagship)
+- imagegen-frontend-web · brandkit
+
+RULES:
+- Study the flagship + image-gen trio first.
+- Keep the philosophy → product link: research/laziness → full-output-enforcement.
+- Each SKILL.md = one responsibility + frontmatter.
+
+VERIFY: are all 13 skills covered; are cross-references consistent; is the taxonomy preserved?`}
+  }
+};
+
+/* ---- basit katmanlı DAG yerleşimi ---- */
+function layout(nodes, edges){
+  const out={}; nodes.forEach(n=>out[n]=[]);
+  edges.forEach(([a,b])=>{ if(out[a]&&out[b]!==undefined) out[a].push(b); });
+  const depth={}, seen={};
+  function d(n){ if(depth[n]!=null) return depth[n]; if(seen[n]) return 0; seen[n]=1;
+    const ch=out[n]||[]; depth[n]= ch.length? 1+Math.max(...ch.map(d)) : 0; return depth[n]; }
+  nodes.forEach(d);
+  const byLayer={}; nodes.forEach(n=>{(byLayer[depth[n]]=byLayer[depth[n]]||[]).push(n)});
+  const maxL=Math.max(...nodes.map(n=>depth[n]));
+  const pos={}, W=1000, H=70+maxL*64;
+  Object.keys(byLayer).forEach(l=>{ const row=byLayer[l]; const y=H-30-(+l)*64;
+    row.forEach((n,i)=>{ pos[n]={x: (W/(row.length+1))*(i+1), y}; }); });
+  return {pos,W,H};
+}
+function graphSVG(d){
+  const nodes=d.rank.map(r=>r.m);
+  const inEdges={}; d.rank.forEach(r=>inEdges[r.m]=r.in);
+  const {pos,W,H}=layout(nodes,d.edges_l);
+  let s=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
+  d.edges_l.forEach(([a,b])=>{ if(pos[a]&&pos[b]) s+=`<path class="edge" data-a="${a}" data-b="${b}" d="M${pos[a].x} ${pos[a].y} C ${pos[a].x} ${(pos[a].y+pos[b].y)/2}, ${pos[b].x} ${(pos[a].y+pos[b].y)/2}, ${pos[b].x} ${pos[b].y}"/>`; });
+  nodes.forEach(n=>{ if(!pos[n])return; const core=(inEdges[n]||0)>=5; const w=Math.max(54,n.length*6.4+14);
+    s+=`<g class="node ${core?'core':''}" data-name="${n}" transform="translate(${pos[n].x-w/2},${pos[n].y-12})">
+      <rect width="${w}" height="24" rx="7"/><text x="${w/2}" y="16" text-anchor="middle">${n}</text></g>`; });
+  return s+`</svg>`;
+}
+
+let CUR=null, LANG='tr', THEME='light';
+const T={
+ tr:{nav_library:"Kütüphane",nav_verify:"Doğrula",nav_premium:"Premium",
+   eyebrow:"repo → anlayış · doğrulanabilir",title_pre:"Repository to ",title_em:"understanding",
+   sub:"Bir GitHub reposunu yüzeysel bir prompt'a değil, doğrulanabilir bir mimari anlayışa çevir. Derin analiz, uyarlanır mercek ve otomatik doğrulama.",
+   analyze:"Analiz et",ph:"https://github.com/kullanıcı/repo",
+   hint:`GitHub URL'inde <code>hub</code> yerine <code>grok</code> de yazabilirsin. <b>Prototip:</b> örnek repolar gerçek analiz verisiyle gelir.`,
+   chip_code:"· kod",chip_content:"· içerik",footer:"Gerçek statik analiz + doğrulama verisiyle · derin, doğrulanabilir repo anlayışı",
+   repotype:"repo-tipi",unit_code:"modül",unit_content:"birim",edge_code:"iç bağımlılık",edge_content:"çapraz referans",
+   wl_code:"loc",wl_content:"satır",ext:"dış",
+   c_centrality:"Ağırlık / merkezilik",s_static:"statik analiz · LLM'siz",
+   c_graph:"Bağımlılık grafiği",g_code:"import yönü · turuncu = çekirdek (in≥5)",g_content:"çapraz referans yönü",
+   c_report:"Derin rapor",s_report:"map → reduce sentezi",
+   c_verify:"Doğrulama skoru",s_verify:"verify.py · deterministik, gerçek kodla",
+   win_title:"Kazanım — agent-ready prompt",win_sub:"doğrulanmış mimariden üretildi · coding agent'ına yapıştır",
+   copy:"Kopyala",copied:"✓ Kopyalandı",
+   win_note:`İşin sonundaki somut kazanç: doğrulanmış inşa sırası + tasarım kararları + öz-denetim kriterleriyle gelen, doğrudan işletilebilir bir prompt. Claude Code / Cursor / Codex'e yapıştır ya da repo köküne <code>CLAUDE.md</code> olarak bırak.`,
+   rb_code:n=>`→ ingest · repo-tipi: <span class="ok">code (python)</span>\n→ statik analiz (tree-sitter) · ${n.u} modül, ${n.e} kenar\n→ map → reduce → <span class="ok">rapor ✓</span>`,
+   rb_content:n=>`→ ingest · kod merceği: 0 modül → <span class="ok">içerik merceğine geçildi</span>\n→ statik analiz · ${n.u} birim, ${n.e} çapraz referans\n→ map → reduce → <span class="ok">rapor ✓</span>`,
+   loading:u=>`→ ingest <span style="color:var(--ink)">${u}</span>\n→ statik analiz çalışıyor… <span class="ok">canlı backend</span>`,
+   off_title:"Canlı backend kapalı",off_sub:"Bu URL gömülü örneklerde yok ve sunucu çalışmıyor.",
+   off_body:`Canlı analiz için backend'i başlat: <code>python server.py</code> — veya örnek repolardan birini dene.`,
+   m_in:"bağımlı (in)",m_out:"bağlı (out)",m_pr:"pagerank",m_loc:"satır",
+   deps_code:"Bağımlı olduğu (import eder)",deps_content:"Atıfta bulunduğu",
+   dep_code:"Buna bağımlı (import edenler)",dep_content:"Buna atıf yapanlar",none:"— yok —",
+   role:{base:"temel katman · çok kullanılan, hiçbir şeye bağlı değil",core:"çekirdek · mimarinin merkezi",
+     orch:"orkestrasyon · çok şeyi bir araya getiren",entry:"giriş noktası / üst katman",mid:"destek / ara katman"}},
+ en:{nav_library:"Library",nav_verify:"Verify",nav_premium:"Premium",
+   eyebrow:"repo → understanding · verifiable",title_pre:"Repository to ",title_em:"understanding",
+   sub:"Turn a GitHub repo into a verifiable architectural understanding — not a shallow prompt. Deep analysis, adaptive lens and automated verification.",
+   analyze:"Analyze",ph:"https://github.com/user/repo",
+   hint:`In a GitHub URL you can swap <code>hub</code> for <code>grok</code>. <b>Prototype:</b> example repos come with real analysis data.`,
+   chip_code:"· code",chip_content:"· content",footer:"Powered by real static-analysis + verification data · deep, verifiable repo understanding",
+   repotype:"repo type",unit_code:"modules",unit_content:"units",edge_code:"internal deps",edge_content:"cross-references",
+   wl_code:"loc",wl_content:"lines",ext:"external",
+   c_centrality:"Weight / centrality",s_static:"static analysis · no LLM",
+   c_graph:"Dependency graph",g_code:"import direction · orange = core (in≥5)",g_content:"cross-reference direction",
+   c_report:"Deep report",s_report:"map → reduce synthesis",
+   c_verify:"Verification score",s_verify:"verify.py · deterministic, against real code",
+   win_title:"Payoff — agent-ready prompt",win_sub:"generated from verified architecture · paste into your coding agent",
+   copy:"Copy",copied:"✓ Copied",
+   win_note:`The concrete payoff: a directly-usable prompt with a verified build order + design decisions + self-check criteria. Paste it into Claude Code / Cursor / Codex, or drop it at the repo root as <code>CLAUDE.md</code>.`,
+   rb_code:n=>`→ ingest · repo type: <span class="ok">code (python)</span>\n→ static analysis (tree-sitter) · ${n.u} modules, ${n.e} edges\n→ map → reduce → <span class="ok">report ✓</span>`,
+   rb_content:n=>`→ ingest · code lens: 0 modules → <span class="ok">switched to content lens</span>\n→ static analysis · ${n.u} units, ${n.e} cross-refs\n→ map → reduce → <span class="ok">report ✓</span>`,
+   loading:u=>`→ ingest <span style="color:var(--ink)">${u}</span>\n→ running static analysis… <span class="ok">live backend</span>`,
+   off_title:"Live backend is off",off_sub:"This URL isn't in the bundled examples and the server isn't running.",
+   off_body:`Start the backend for live analysis: <code>python server.py</code> — or try one of the example repos.`,
+   m_in:"depended-on (in)",m_out:"depends-on (out)",m_pr:"pagerank",m_loc:"lines",
+   deps_code:"Depends on (imports)",deps_content:"References",
+   dep_code:"Depended on by (importers)",dep_content:"Referenced by",none:"— none —",
+   role:{base:"foundation · widely used, depends on nothing",core:"core · center of the architecture",
+     orch:"orchestration · ties everything together",entry:"entry point / top layer",mid:"support / middle layer"}}
+};
+function L(k){ return T[LANG][k]; }
+function pickL(v){ return (v&&typeof v==='object'&&!Array.isArray(v)&&(v.tr||v.en))? (v[LANG]||v.tr||v.en) : v; }
+function inferRole(d,name){
+  const r=d.rank.find(x=>x.m===name)||{in:0,out:0}; const R=L('role');
+  if(r.out===0 && r.in>=4) return R.base;
+  if(r.in>=5) return R.core;
+  if(r.out>=6) return R.orch;
+  if(r.in===0) return R.entry;
+  return R.mid;
+}
+function wireGraph(){
+  const svg=document.querySelector('#results svg'); if(!svg)return;
+  const nodes=[...svg.querySelectorAll('.node')], edges=[...svg.querySelectorAll('.edge')];
+  function connected(name){ const s=new Set([name]);
+    edges.forEach(e=>{ if(e.dataset.a===name)s.add(e.dataset.b); if(e.dataset.b===name)s.add(e.dataset.a); }); return s; }
+  nodes.forEach(g=>{
+    const name=g.dataset.name;
+    g.addEventListener('mouseenter',()=>{
+      const con=connected(name);
+      nodes.forEach(n=>{ n.classList.toggle('dim',!con.has(n.dataset.name)); });
+      g.classList.remove('dim'); g.classList.add('hovered');
+      edges.forEach(e=>{ const on=(e.dataset.a===name||e.dataset.b===name);
+        e.classList.toggle('hl',on); e.classList.toggle('dim',!on); });
+    });
+    g.addEventListener('mouseleave',()=>{
+      nodes.forEach(n=>n.classList.remove('dim','hovered'));
+      edges.forEach(e=>e.classList.remove('hl','dim'));
+    });
+    g.addEventListener('click',()=>openDetail(name));
+  });
+}
+function openDetail(name){
+  const d=CUR; if(!d)return;
+  const r=d.rank.find(x=>x.m===name)||{in:0,out:0,pr:0,loc:0};
+  const deps=d.edges_l.filter(([a])=>a===name).map(e=>e[1]);
+  const dependents=d.edges_l.filter(([,b])=>b===name).map(e=>e[0]);
+  const tag=arr=>arr.length?arr.map(x=>`<span class="tag" onclick="openDetail('${x}')">${x}</span>`).join(''):`<span class="empty">${L('none')}</span>`;
+  document.getElementById('drawerBody').innerHTML=`
+    <h3>${name}</h3>
+    <span class="role">${inferRole(d,name)}</span>
+    <div class="metrics">
+      <div class="metric"><div class="n">${r.in}</div><div class="k">${L('m_in')}</div></div>
+      <div class="metric"><div class="n">${r.out}</div><div class="k">${L('m_out')}</div></div>
+      <div class="metric"><div class="n">${r.pr}</div><div class="k">${L('m_pr')}</div></div>
+      <div class="metric"><div class="n">${r.loc}</div><div class="k">${L('m_loc')}</div></div>
+    </div>
+    <div class="dl">${d.kind==='code'?L('deps_code'):L('deps_content')}</div>
+    <div class="tags">${tag(deps)}</div>
+    <div class="dl">${d.kind==='code'?L('dep_code'):L('dep_content')}</div>
+    <div class="tags">${tag(dependents)}</div>`;
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('scrim').classList.add('open');
+  // grafikte aktif düğümü işaretle
+  document.querySelectorAll('#results .node').forEach(g=>g.classList.toggle('active',g.dataset.name===name));
+}
+function closeDrawer(){
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('scrim').classList.remove('open');
+  document.querySelectorAll('#results .node').forEach(g=>g.classList.remove('active'));
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeDrawer(); });
+
+function render(d){
+  const r=document.getElementById('results');
+  const code=d.kind==='code';
+  const bcls=code?'b-code':'b-content';
+  const runbar = (code?L('rb_code'):L('rb_content'))({u:d.units,e:d.edges});
+  const ulabel=code?L('unit_code'):L('unit_content');
+  const wl=code?L('wl_code'):L('wl_content');
+  const report=pickL(d.report), prompt=pickL(d.prompt), vnote=pickL(d.vnote);
+  const maxLoc=Math.max(...d.rank.map(x=>x.loc));
+
+  let rows=d.rank.map(x=>`<tr><td class="m">${x.m}</td><td>${x.in}</td><td>${x.out}</td>
+    <td>${x.pr}</td><td><div style="display:flex;align-items:center;gap:8px">
+    <div class="bar" style="width:${30+70*x.loc/maxLoc}px"><i style="width:${100*x.loc/maxLoc}%"></i></div>
+    <span style="color:var(--dim);font-family:var(--mono);font-size:11px">${x.loc}</span></div></td></tr>`).join('');
+
+  let vrows=d.verify.map(([l,sc,c])=>`<div class="vrow"><div class="vl">${pickL(l)}</div>
+    <div class="vbar"><i style="width:${sc}%;background:var(${c})"></i></div>
+    <div class="vs" style="color:var(${c})">${sc}</div></div>`).join('');
+
+  r.innerHTML=`
+   <div class="runbar">${runbar}</div>
+   <div class="card">
+     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+       <span class="badge ${bcls}">${L('repotype')}: ${d.kind}</span>
+       <h3 style="margin:0">${d.name}</h3>
+     </div>
+     <div class="stat"><span><b>${d.units}</b> ${ulabel}</span>
+       <span><b>${d.edges}</b> ${code?L('edge_code'):L('edge_content')}</span>
+       <span><b>${d.loc.toLocaleString()}</b> ${wl}</span>
+       ${d.ext.length?`<span>${L('ext')}: <b>${d.ext.join(', ')}</b></span>`:''}</div>
+   </div>
+   <div class="grid">
+     <div class="card"><h3>${L('c_centrality')}</h3><div class="sub">${L('s_static')}</div>
+       <table><thead><tr><th>${ulabel}</th><th>in</th><th>out</th><th>pr</th><th>${wl}</th></tr></thead>
+       <tbody>${rows}</tbody></table></div>
+     <div class="card"><h3>${L('c_graph')}</h3><div class="sub">${code?L('g_code'):L('g_content')}</div>
+       ${graphSVG(d)}</div>
+   </div>
+   <div class="card report"><h3>${L('c_report')}</h3><div class="sub">${L('s_report')}</div>${report}</div>
+   <div class="card"><h3>${L('c_verify')}</h3><div class="sub">${L('s_verify')}</div>
+     ${vrows}<div class="note">${vnote}</div></div>
+   ${prompt?`<div class="card win">
+     <div class="win-head"><div><h3>${L('win_title')}</h3>
+       <div class="sub">${L('win_sub')}</div></div>
+       <div class="win-btns">
+         <button class="wbtn primary" onclick="copyPrompt(this)">${L('copy')}</button>
+         <button class="wbtn" onclick="dl('CLAUDE.md')">CLAUDE.md</button>
+         <button class="wbtn" onclick="dl('AGENTS.md')">AGENTS.md</button>
+       </div></div>
+     <pre id="promptBox">${prompt.replace(/</g,'&lt;')}</pre>
+     <div class="note">${L('win_note')}</div>
+   </div>`:''}
+  `;
+  r.style.display='block';
+  r.classList.remove('reveal'); void r.offsetWidth; r.classList.add('reveal');
+  CUR=d; closeDrawer(); wireGraph();
+  r.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function copyPrompt(btn){
+  const t=(CUR&&pickL(CUR.prompt))||''; const done=()=>{const o=btn.textContent;btn.textContent=L('copied');setTimeout(()=>btn.textContent=o,1600);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(done).catch(()=>fallbackCopy(t,done)); }
+  else fallbackCopy(t,done);
+}
+function fallbackCopy(t,done){ const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');done();}catch(e){}ta.remove(); }
+function dl(fname){
+  if(!CUR||!CUR.prompt)return;
+  const note = LANG==='tr' ? 'GitGrok tarafından üretildi (doğrulanmış mimari)' : 'Generated by GitGrok (verified architecture)';
+  const header=`# ${fname.replace('.md','')} — ${CUR.name}\n# ${note}\n\n`;
+  const blob=new Blob([header+pickL(CUR.prompt)+'\n'],{type:'text/markdown'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+function run(key){ document.getElementById('url').value="https://github.com/"+DATA[key].name; render(DATA[key]); }
+
+function showLoading(url){
+  const r=document.getElementById('results');
+  r.innerHTML=`<div class="runbar">${L('loading')(url)}</div>`;
+  r.style.display='block'; r.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+async function analyze(){
+  const v=document.getElementById('url').value.trim();
+  const lv=v.toLowerCase();
+  showLoading(v||'…');
+  try{
+    const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url:v})});
+    if(res.ok){ const d=await res.json(); if(!d.error) return render(d); }
+  }catch(e){ /* backend yok → fallback */ }
+  if(lv.includes('taste')) return render(DATA.taste);
+  if(lv.includes('requests')||v==='') return render(DATA.requests);
+  const r=document.getElementById('results');
+  r.innerHTML=`<div class="card"><h3>${L('off_title')}</h3>
+    <div class="sub">${L('off_sub')}</div>
+    <p style="font-size:13.5px;color:var(--dim)">${L('off_body')}</p></div>`;
+}
+
+/* ---- dil + tema ---- */
+function setLang(lang){
+  LANG=lang; document.documentElement.lang=lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.getAttribute('data-i18n'); if(T[lang][k]!=null) el.innerHTML=T[lang][k];
+  });
+  document.getElementById('url').setAttribute('placeholder',L('ph'));
+  document.querySelectorAll('#langSeg button').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
+  if(CUR) render(CUR);   // sonucu yeni dilde yeniden çiz
+}
+function toggleTheme(){ setTheme(THEME==='light'?'dark':'light'); }
+function setTheme(t){
+  THEME=t; document.documentElement.setAttribute('data-theme',t);
+  const moon='<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+  const sun='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  document.getElementById('themeBtn').innerHTML = t==='light' ? moon : sun;
+}
+// init
+setTheme('light'); setLang('tr');
+
+</script>
+</body>
+</html>

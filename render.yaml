@@ -1,0 +1,12 @@
+# Render.com tek-tık deploy tanımı.
+# Repo'yu Render'a bağlayınca bunu otomatik okur (Blueprint).
+services:
+  - type: web
+    name: gitgrok
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter            # ~$7/ay; "free" da seçilebilir (uyur)
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false          # gizli; Render panelinden elle girilir
