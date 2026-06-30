@@ -433,7 +433,8 @@ class LLM:
                 self.usage["in"] += resp.usage.input_tokens
                 self.usage["out"] += resp.usage.output_tokens
                 self.usage["calls"] += 1
-                open(cp, "w").write(text)
+                try: open(cp, "w").write(text)   # cache yazımı hataya dayanıklı
+                except OSError: pass
                 return text
             except Exception as e:
                 if attempt == 3:

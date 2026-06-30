@@ -13,7 +13,7 @@ Uçlar:
   GET  /api/health
 """
 from __future__ import annotations
-import os, sys, json, time, tempfile, shutil, traceback, subprocess
+import os, sys, re, json, time, tempfile, shutil, traceback, subprocess
 from collections import defaultdict, deque
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
@@ -55,25 +55,59 @@ def _repo_stats(root: str):
     return nfiles, nbytes / (1024 * 1024)
 
 
+def _esc(s: str) -> str:
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+def _inline(s: str) -> str:
+    s = _esc(s)
+    s = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
+    s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
+    return s
+
+def _md2html(body: str) -> str:
+    """Markdown-lite → HTML (başlık, liste, kalın, kod, kod-bloğu)."""
+    out = []; lst = None; fence = False; buf = []
+    def closelist():
+        nonlocal lst
+        if lst: out.append(f"</{lst}>"); lst = None
+    for raw in body.splitlines():
+        st = raw.strip()
+        if st.startswith("```"):
+            if fence:
+                out.append('<div class="layer">' + "\n".join(buf) + "</div>"); buf = []; fence = False
+            else:
+                closelist(); fence = True
+            continue
+        if fence:
+            buf.append(_esc(raw)); continue
+        if not st:
+            closelist(); continue
+        if st.startswith("#"):
+            closelist(); out.append(f"<h4>{_inline(st.lstrip('# ').strip())}</h4>"); continue
+        if st.startswith(("- ", "* ")):
+            if lst != "ul": closelist(); out.append("<ul>"); lst = "ul"
+            out.append(f"<li>{_inline(st[2:].strip())}</li>"); continue
+        m = re.match(r"^(\d+)[.)]\s+(.*)", st)
+        if m:
+            if lst != "ol": closelist(); out.append("<ol>"); lst = "ol"
+            out.append(f"<li>{_inline(m.group(2))}</li>"); continue
+        closelist(); out.append(f"<p>{_inline(st)}</p>")
+    closelist()
+    if fence and buf:
+        out.append('<div class="layer">' + "\n".join(buf) + "</div>")
+    return "".join(out)
+
+
 def build_report_html(analysis: dict, llm_ok: bool) -> str:
     """LLM anahtarı varsa gerçek reduce; yoksa statikten dürüst bir özet."""
     if llm_ok:
         try:
-            llm = rm.LLM(os.path.join(HERE, ".repomind_cache"), dry_run=False)
-            TOP_K = int(os.environ.get("MAP_TOP_K", "15"))  # sadece en merkezi modülleri özetle (hız)
-            rm.map_step(analysis, llm, "claude-haiku-4-5-20251001", workers=8, top_k=TOP_K)
+            cache_dir = os.environ.get("CACHE_DIR", os.path.join(tempfile.gettempdir(), "gitgrok_cache"))
+            llm = rm.LLM(cache_dir, dry_run=False)
+            TOP_K = int(os.environ.get("MAP_TOP_K", "30"))  # merkez modüller (çoğu repo tam kapsanır)
+            rm.map_step(analysis, llm, "claude-haiku-4-5-20251001", workers=10, top_k=TOP_K)
             body = rm.reduce_step(analysis, llm, "claude-sonnet-4-6", top_k=TOP_K)
-            # markdown -> kaba html (başlık + paragraf)
-            html = []
-            for line in body.splitlines():
-                s = line.strip()
-                if not s:
-                    continue
-                if s.startswith("#"):
-                    html.append(f"<h4>{s.lstrip('# ').strip()}</h4>")
-                else:
-                    html.append(f"<p>{s}</p>")
-            return "".join(html)
+            return _md2html(body)
         except Exception as e:
             return f'<p class="pill">LLM adımı hata verdi: {e}. Statik analiz yine de geçerli.</p>'
     # anahtar yok: statikten dürüst özet
