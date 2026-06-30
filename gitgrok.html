@@ -90,6 +90,27 @@
   .reveal{animation:fade .45s cubic-bezier(.2,.7,.2,1)}
   @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
+  /* animasyonlu loader */
+  .gg-loader{display:flex;flex-direction:column;align-items:center;gap:20px;padding:64px 0 70px;text-align:center}
+  .gg-loader svg{width:150px;height:104px;overflow:visible}
+  .gl-edge{stroke:var(--accent-line);stroke-width:2;fill:none;stroke-dasharray:90;stroke-dashoffset:90;
+    animation:gl-draw 1.7s ease-in-out infinite alternate}
+  @keyframes gl-draw{to{stroke-dashoffset:0}}
+  .gl-node{fill:var(--accent);transform-box:fill-box;transform-origin:center;opacity:.4;
+    animation:gl-pulse 1.5s ease-in-out infinite}
+  .gl-core{fill:var(--navy)}
+  [data-theme="dark"] .gl-core{fill:var(--amber)}
+  @keyframes gl-pulse{0%,100%{opacity:.35;transform:scale(.78)}50%{opacity:1;transform:scale(1.18)}}
+  .gl-scan{fill:none;stroke:var(--accent);stroke-width:2.5;opacity:.5;
+    animation:gl-scan 1.8s ease-in-out infinite}
+  @keyframes gl-scan{0%{transform:translateX(-58px);opacity:0}30%{opacity:.55}100%{transform:translateX(58px);opacity:0}}
+  .gl-step{font-family:var(--mono);font-size:13px;color:var(--dim);min-height:18px}
+  .gl-step b{color:var(--ink);font-weight:500}
+  .gl-bar{width:260px;height:5px;background:var(--surface2);border:1px solid var(--line2);border-radius:5px;overflow:hidden}
+  .gl-bar>i{display:block;height:100%;width:0;background:var(--accent);border-radius:5px;
+    animation:gl-fill linear forwards}
+  @keyframes gl-fill{to{width:100%}}
+
   .runbar{font-family:var(--mono);font-size:12.5px;color:var(--dim);background:var(--surface);
     border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:6px 0 22px;white-space:pre-line;box-shadow:var(--shadow)}
   .runbar .ok{color:var(--good);font-weight:500}
@@ -228,7 +249,7 @@
 <div class="wrap">
   <section class="hero">
     <div class="eyebrow" data-i18n="eyebrow">repo → anlayış · doğrulanabilir</div>
-    <h1>Repository to <em>understanding</em></h1>
+    <h1 data-i18n="title">Repodan <em>kavrayışa</em></h1>
     <p data-i18n="sub">Bir GitHub reposunu yüzeysel bir prompt'a değil, doğrulanabilir bir mimari anlayışa çevir. Derin analiz, uyarlanır mercek ve otomatik doğrulama.</p>
     <div class="box">
       <input id="url" placeholder="https://github.com/kullanıcı/repo" spellcheck="false">
@@ -391,7 +412,7 @@ function graphSVG(d){
 let CUR=null, LANG='tr', THEME='light';
 const T={
  tr:{nav_library:"Kütüphane",nav_verify:"Doğrula",nav_premium:"Premium",
-   eyebrow:"repo → anlayış · doğrulanabilir",title_pre:"Repository to ",title_em:"understanding",
+   eyebrow:"repo → anlayış · doğrulanabilir",title:"Repodan <em>kavrayışa</em>",
    sub:"Bir GitHub reposunu yüzeysel bir prompt'a değil, doğrulanabilir bir mimari anlayışa çevir. Derin analiz, uyarlanır mercek ve otomatik doğrulama.",
    analyze:"Analiz et",ph:"https://github.com/kullanıcı/repo",
    hint:`GitHub URL'inde <code>hub</code> yerine <code>grok</code> de yazabilirsin. <b>Prototip:</b> örnek repolar gerçek analiz verisiyle gelir.`,
@@ -417,7 +438,7 @@ const T={
    role:{base:"temel katman · çok kullanılan, hiçbir şeye bağlı değil",core:"çekirdek · mimarinin merkezi",
      orch:"orkestrasyon · çok şeyi bir araya getiren",entry:"giriş noktası / üst katman",mid:"destek / ara katman"}},
  en:{nav_library:"Library",nav_verify:"Verify",nav_premium:"Premium",
-   eyebrow:"repo → understanding · verifiable",title_pre:"Repository to ",title_em:"understanding",
+   eyebrow:"repo → understanding · verifiable",title:"Repository to <em>understanding</em>",
    sub:"Turn a GitHub repo into a verifiable architectural understanding — not a shallow prompt. Deep analysis, adaptive lens and automated verification.",
    analyze:"Analyze",ph:"https://github.com/user/repo",
    hint:`In a GitHub URL you can swap <code>hub</code> for <code>grok</code>. <b>Prototype:</b> example repos come with real analysis data.`,
@@ -560,6 +581,7 @@ function render(d){
   `;
   r.style.display='block';
   r.classList.remove('reveal'); void r.offsetWidth; r.classList.add('reveal');
+  stopLoading();
   CUR=d; closeDrawer(); wireGraph();
   r.scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -580,7 +602,11 @@ function dl(fname){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
-function run(key){ document.getElementById('url').value="https://github.com/"+DATA[key].name; render(DATA[key]); }
+function run(key){
+  document.getElementById('url').value="https://github.com/"+DATA[key].name;
+  showLoading();
+  setTimeout(()=>{ stopLoading(); render(DATA[key]); }, MIN_LOADING);
+}
 
 /* ---- Kütüphane: öne çıkan repolar ---- */
 const LIB=[
@@ -615,27 +641,61 @@ function pickRepo(repo){
   analyze();
 }
 
-function showLoading(url){
+const MIN_LOADING=5500;  // loader en az bu kadar görünsün (hoş bekleme deneyimi)
+const LOAD_STEPS={
+ tr:["Repo klonlanıyor…","Kod ayrıştırılıyor (tree-sitter)…","Bağımlılık grafiği çıkarılıyor…","Merkez modüller bulunuyor…","Derin rapor sentezleniyor…","Doğrulanıyor…"],
+ en:["Cloning repository…","Parsing code (tree-sitter)…","Building dependency graph…","Finding core modules…","Synthesizing deep report…","Verifying…"]
+};
+let _loadTimer=null;
+function showLoading(){
   const r=document.getElementById('results');
-  r.innerHTML=`<div class="runbar">${L('loading')(url)}</div>`;
+  r.innerHTML=`<div class="gg-loader">
+    <svg viewBox="0 0 150 104" aria-hidden="true">
+      <line class="gl-edge" x1="30" y1="30" x2="75" y2="55"/>
+      <line class="gl-edge" x1="120" y1="30" x2="75" y2="55" style="animation-delay:.3s"/>
+      <line class="gl-edge" x1="30" y1="80" x2="75" y2="55" style="animation-delay:.5s"/>
+      <line class="gl-edge" x1="120" y1="80" x2="75" y2="55" style="animation-delay:.7s"/>
+      <circle class="gl-node" cx="30" cy="30" r="7"/>
+      <circle class="gl-node" cx="120" cy="30" r="7" style="animation-delay:.2s"/>
+      <circle class="gl-node" cx="30" cy="80" r="7" style="animation-delay:.4s"/>
+      <circle class="gl-node" cx="120" cy="80" r="7" style="animation-delay:.6s"/>
+      <circle class="gl-node gl-core" cx="75" cy="55" r="10" style="animation-delay:.1s"/>
+      <line class="gl-scan" x1="75" y1="12" x2="75" y2="98"/>
+    </svg>
+    <div class="gl-step" id="glStep"></div>
+    <div class="gl-bar"><i style="animation-duration:${MIN_LOADING}ms"></i></div>
+  </div>`;
   r.style.display='block'; r.scrollIntoView({behavior:'smooth',block:'start'});
+  const steps=LOAD_STEPS[LANG]||LOAD_STEPS.tr; let i=0;
+  const tick=()=>{ const el=document.getElementById('glStep'); if(el) el.innerHTML='<b>'+steps[i%steps.length]+'</b>'; i++; };
+  tick(); clearInterval(_loadTimer); _loadTimer=setInterval(tick, MIN_LOADING/steps.length);
+}
+function stopLoading(){ clearInterval(_loadTimer); _loadTimer=null; }
+function showOff(){
+  stopLoading();
+  document.getElementById('results').innerHTML=`<div class="card"><h3>${L('off_title')}</h3>
+    <div class="sub">${L('off_sub')}</div>
+    <p style="font-size:13.5px;color:var(--dim)">${L('off_body')}</p></div>`;
 }
 
 async function analyze(){
   const v=document.getElementById('url').value.trim();
   const lv=v.toLowerCase();
-  showLoading(v||'…');
+  showLoading();
+  const t0=Date.now();
+  let result=null;
   try{
     const res=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({url:v})});
-    if(res.ok){ const d=await res.json(); if(!d.error) return render(d); }
+    if(res.ok){ const d=await res.json(); if(!d.error) result={data:d}; }
   }catch(e){ /* backend yok → fallback */ }
-  if(lv.includes('taste')) return render(DATA.taste);
-  if(lv.includes('requests')||v==='') return render(DATA.requests);
-  const r=document.getElementById('results');
-  r.innerHTML=`<div class="card"><h3>${L('off_title')}</h3>
-    <div class="sub">${L('off_sub')}</div>
-    <p style="font-size:13.5px;color:var(--dim)">${L('off_body')}</p></div>`;
+  if(!result){
+    if(lv.includes('taste')) result={data:DATA.taste};
+    else if(lv.includes('requests')||v==='') result={data:DATA.requests};
+    else result={err:true};
+  }
+  const wait=Math.max(0, MIN_LOADING-(Date.now()-t0));
+  setTimeout(()=>{ stopLoading(); result.data? render(result.data) : showOff(); }, wait);
 }
 
 /* ---- dil + tema ---- */
