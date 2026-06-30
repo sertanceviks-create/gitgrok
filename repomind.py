@@ -483,12 +483,15 @@ def map_step(analysis: dict, llm: LLM, model: str, workers: int, top_k: int | No
 def reduce_step(analysis: dict, llm: LLM, model: str, top_k: int | None = None) -> str:
     mods, indeg, outdeg = analysis["modules"], analysis["in_degree"], analysis["out_degree"]
     pr, wl, label = analysis["pagerank"], analysis["weight_label"], analysis["unit_label"]
-    top = analysis["ranking"][:top_k] if top_k else analysis["ranking"]
+    ranked = analysis["ranking"]
+    summ_set = ranked[:top_k] if top_k else ranked
+    # TÜM yapı reduce'a verilir (ücretsiz metin) → zengin sistem-seviyesi rapor
     rank_table = "\n".join(
         f"  {m} | in={indeg[m]} out={outdeg[m]} pr={pr[m]:.3f} {wl}={mods[m].loc}"
-        for m in top)
-    edge_list = "\n".join(f"  {a} -> {b}" for a, b in analysis["edges"][:60]) or "  (yok)"
-    summaries = "\n\n".join(f"### {m}\n{mods[m].summary}" for m in top if mods[m].summary)
+        for m in ranked)
+    edge_list = "\n".join(f"  {a} -> {b}" for a, b in analysis["edges"][:180]) or "  (yok)"
+    # derin modül notları sadece özetlenen (merkez) modüllerden
+    summaries = "\n\n".join(f"### {m}\n{mods[m].summary}" for m in summ_set if mods[m].summary)
     prompt = (
         f"REPO TÜRÜ: {analysis['kind']} ({analysis['lang']}) | "
         f"{label.upper()}: {len(mods)} | REFERANS/KENAR: {len(analysis['edges'])}\n\n"
