@@ -605,9 +605,9 @@ function dl(fname){
 }
 
 function run(key){
+  // örnek çipler de canlı backend'e gider (offline'da gömülü veriye düşer)
   document.getElementById('url').value="https://github.com/"+DATA[key].name;
-  showLoading();
-  setTimeout(()=>{ stopLoading(); render(DATA[key]); }, MIN_LOADING);
+  analyze();
 }
 
 /* ---- Kütüphane: öne çıkan repolar ---- */

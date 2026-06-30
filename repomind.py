@@ -375,11 +375,17 @@ MAP_SYSTEM_CODE = (
 )
 REDUCE_SYSTEM_CODE = (
     "Sen bir kıdemli yazılım mimarısın. Sana bir reponun bağımlılık grafiği, "
-    "merkezilik sıralaması ve modül modül özetler verilecek. Bunları birleştirip "
-    "şu bölümleri içeren bir DERİN MİMARİ RAPORU üret (Markdown, Türkçe): "
-    "1) Yönetici özeti, 2) Katmanlı mimari, 3) Çıkarımsal tasarım kararları ve 'neden', "
-    "4) Bir tipik isteğin/akışın yaşam döngüsü, 5) Bağımlılık-sıralı yeniden inşa planı, "
-    "6) Zenginleştirilmiş bir coding-agent prompt'u. Spekülasyonu 'muhtemelen' ile işaretle."
+    "merkezilik sıralaması ve modül modül özetler verilecek. Bunları birleştirerek "
+    "KAPSAMLI ve DETAYLI bir DERİN MİMARİ RAPORU üret (Markdown, Türkçe). "
+    "Her bölüm dolu olsun; yüzeysel geçme, somut modül adları ve sayılarla destekle.\n"
+    "## 1. Yönetici özeti — 2-3 paragraf: repo ne yapar, çekirdek fikir, ana bağımlılıklar.\n"
+    "## 2. Katmanlı mimari — katmanları ve her katmandaki modülleri açıkla (kod bloğu + paragraf).\n"
+    "## 3. Çekirdek modüller — en merkezi 5-8 modülün her birini ayrı ele al: rolü, neye bağlı, neden önemli.\n"
+    "## 4. Çıkarımsal tasarım kararları — en az 4 karar, her birinde 'neden böyle yapılmış' + kanıt.\n"
+    "## 5. Tipik akışın yaşam döngüsü — bir isteğin/çağrının adım adım izlediği yol.\n"
+    "## 6. Bağımlılık-sıralı yeniden inşa planı — numaralı liste.\n"
+    "## 7. Riskler / dikkat noktaları — döngüler, sıkı bağlılıklar, kırılgan yerler.\n"
+    "Spekülasyonu 'muhtemelen' ile işaretle. Liste ve kalın yazıyı bolca kullan, ama dolu yaz."
 )
 MAP_SYSTEM_CONTENT = (
     "Sen bir içerik/bilgi-mimarisi analistisin. Sana bir Markdown biriminin (bir Agent "
@@ -390,11 +396,16 @@ MAP_SYSTEM_CONTENT = (
 REDUCE_SYSTEM_CONTENT = (
     "Sen bir bilgi-mimarisisin. Sana bir içerik/skills reposunun birim listesi, boyuta göre "
     "ağırlık sıralaması, çapraz referanslar ve birim birim özetler verilecek. Bunları "
-    "birleştirip şu bölümleri içeren bir DERİN ANLAMA RAPORU üret (Markdown, Türkçe): "
-    "1) Yönetici özeti (bu repo ne, ne değil), 2) Birim taksonomisi (aileler), "
-    "3) Kavramsal katmanlar ve 'neden böyle düzenlenmiş', 4) Bir birimin tipik kullanım akışı, "
-    "5) Öğrenme/yeniden-üretme planı (doğru okuma sırası), 6) İçeriği kullanacak bir ajan için "
-    "zenginleştirilmiş prompt. Spekülasyonu 'muhtemelen' ile işaretle."
+    "birleştirerek KAPSAMLI ve DETAYLI bir DERİN ANLAMA RAPORU üret (Markdown, Türkçe). "
+    "Her bölüm dolu olsun; somut birim adlarıyla destekle.\n"
+    "## 1. Yönetici özeti — bu repo ne, ne değil (2-3 paragraf).\n"
+    "## 2. Birim taksonomisi — birimleri ailelere ayır, her aileyi açıkla.\n"
+    "## 3. En ağırlıklı birimler — en büyük 5-8 birimin her birini ayrı ele al.\n"
+    "## 4. Kavramsal katmanlar ve 'neden böyle düzenlenmiş'.\n"
+    "## 5. Tipik kullanım akışı.\n"
+    "## 6. Öğrenme/yeniden-üretme planı — doğru okuma sırası.\n"
+    "## 7. İçeriği kullanacak bir ajan için zenginleştirilmiş prompt.\n"
+    "Spekülasyonu 'muhtemelen' ile işaretle. Liste ve kalın yazıyı bolca kullan, ama dolu yaz."
 )
 
 class LLM:
@@ -501,7 +512,7 @@ def reduce_step(analysis: dict, llm: LLM, model: str, top_k: int | None = None) 
         f"{label.upper()} ÖZETLERİ:\n{summaries}\n\n"
         f"Yukarıdaki verilerle derin raporu üret."
     )
-    return llm.call(analysis["reduce_system"], prompt, model, max_tokens=4096)
+    return llm.call(analysis["reduce_system"], prompt, model, max_tokens=6000)
 
 
 # ----------------------------------------------------------------------------
